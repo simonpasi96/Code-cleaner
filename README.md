@@ -1,5 +1,5 @@
 # Code-cleaner
-Paste in a file and enforce ifs without brackets, remove unnecessary private keywords, remove selected regions, etc.
+This is a tool to format code from the Unity Editor. It does things that Visual Studio doesn't, eg enforce ifs without brackets, remove unnecessary private keywords, remove some regions, etc.
 
 ## How-to:
 * Copy-paste some code into the Code Cleaner window (or click-and-drag a text file into the Open File area).
