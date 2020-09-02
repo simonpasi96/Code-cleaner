@@ -11,9 +11,11 @@ public class CodeCleaner : EditorWindow
         new BracketsCleaner(),
         new PrivatesCleaner(),
         new RegionsRemover(),
-        new NewlinesCleaner()
+        new NewlinesCleaner(),
+        new IfExpressionCleaner()
     };
-    int activeCleaner = -1;
+    int currentCleaner = -1;
+    string previewInput;
 
 
     void OnGUI()
@@ -24,17 +26,17 @@ public class CodeCleaner : EditorWindow
         {
             richText = true
         };
-        if (activeCleaner >= 0)
+        if (currentCleaner >= 0)
         {
             areaStyle.normal.background = new Texture2D(0, 0);
-            GUILayout.TextArea(cleaners[activeCleaner].GetPreview(), areaStyle, GUILayout.ExpandHeight(true));
+            GUILayout.TextArea(cleaners[currentCleaner].GetPreview(), areaStyle, GUILayout.ExpandHeight(true));
         }
         else
             input = GUILayout.TextArea(input, areaStyle, GUILayout.ExpandHeight(true));
         EditorGUILayout.EndScrollView();
 
         // Cleaner interface.
-        if (activeCleaner >= 0)
+        if (currentCleaner >= 0)
         {
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.BeginHorizontal();
@@ -42,18 +44,23 @@ public class CodeCleaner : EditorWindow
             {
                 fontStyle = FontStyle.Italic
             };
-            GUILayout.Label(cleaners[activeCleaner].GetType().ToTitle(), moduleTitle);
+            GUILayout.Label(cleaners[currentCleaner].GetType().ToTitle(), moduleTitle);
             if (GUILayout.Button("X", GUILayout.MaxWidth(40)) || Event.current.keyCode == KeyCode.Escape)
-                activeCleaner = -1;
+                currentCleaner = -1;
             GUILayout.EndHorizontal();
-            if (activeCleaner >= 0)
-                cleaners[activeCleaner].DrawUI();
+            if (currentCleaner >= 0)
+                cleaners[currentCleaner].DrawUI();
             GUILayout.EndVertical();
         }
 
         EditorGUILayout.BeginHorizontal();
         // File drop area.
-        Rect openFileArea = DrawDropArea<TextAsset>("  Open file", (asset) => { input = asset.text; });
+        Rect openFileArea = DrawDropArea<TextAsset>("  Open file", (asset) =>
+        {
+            // Import the text and exit the current cleaner.
+            input = asset.text;
+            currentCleaner = -1;
+        });
         GUI.DrawTexture(new Rect(openFileArea.x + openFileArea.width * .5f - 40, openFileArea.position.y + 8, 15, 15), EditorGUIUtility.IconContent("Folder Icon").image);
 
         // Buttons.
@@ -77,23 +84,18 @@ public class CodeCleaner : EditorWindow
                 int index = i;
                 menu.AddItem(new GUIContent(cleaners[i].GetType().ToTitle()), false, () =>
                 {
-                    activeCleaner = index;
-                    cleaners[activeCleaner].Find(input);
-                    cleaners[activeCleaner].Finalize = delegate (string cleaningResult)
+                    currentCleaner = index;
+                    cleaners[currentCleaner].Find(input);
+                    cleaners[currentCleaner].Finalize = delegate (string cleaningResult)
                     {
                         input = cleaningResult;
-                        activeCleaner = -1;
+                        currentCleaner = -1;
                     };
                 });
             }
 
-            menu.AddItem(new GUIContent("Run all cleaners"), false, () =>
-            {
-
-            });
-
             menu.AddSeparator("");
-            if (activeCleaner >= 0)
+            if (currentCleaner >= 0)
                 menu.AddDisabledItem(new GUIContent("Reset example text"));
             else
                 menu.AddItem(new GUIContent("Reset example text"), false, () =>
@@ -136,6 +138,7 @@ public class CodeCleaner : EditorWindow
         }
     }
 
+
     [MenuItem("Window/Tools/Code cleaner")]
     public static void Open()
     {
@@ -167,11 +170,8 @@ public class CodeCleaner : EditorWindow
                     DragAndDrop.AcceptDrag();
 
                     foreach (UnityEngine.Object droppedObject in DragAndDrop.objectReferences)
-                    {
-
                         if (droppedObject is T target)
                             ObjectAction(target);
-                    }
                 }
                 break;
         }

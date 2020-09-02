@@ -1,7 +1,8 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using static RegexUtilities;
 
-public class BracketsCleaner: CleanerModule
+public class BracketsCleaner : CleanerModule
 {
     List<int> openingBracketsIndexes = new List<int>();
     List<int> closingBracketsIndexes = new List<int>();
@@ -30,55 +31,52 @@ public class BracketsCleaner: CleanerModule
     public override void Find(string input)
     {
         shouldUpdatePreview = true;
-
         this.input = input;
         brackets.Clear();
 
-        openingBracketsIndexes = RegexUtilities.GetMatchesIndexes(input, "{");
-        closingBracketsIndexes = RegexUtilities.GetMatchesIndexes(input, "}");
-        semicolonIndexes = RegexUtilities.GetMatchesIndexes(input, ";");
+        openingBracketsIndexes = GetMatchesIndexes(input, "{");
+        closingBracketsIndexes = GetMatchesIndexes(input, "}");
+        semicolonIndexes = GetMatchesIndexes(input, ";");
 
         // Use double space before keywords so that we exclude #if and matches in comments.
-        FindBracketsFollowingIndexes(RegexUtilities.GetMatchesIndexes(input, @"  if"));
-        FindBracketsFollowingIndexes(RegexUtilities.GetMatchesIndexes(input, @"  else"));
+        FindBracketsFollowingContainters(GetMatches(input, @"(?<!else )(?<!#)if *\("));
+        FindBracketsFollowingContainters(GetMatches(input, @"(?<!#)else"));
+        FindBracketsFollowingContainters(GetMatches(input, @"for *\(.*\)"));
+        FindBracketsFollowingContainters(GetMatches(input, @"while"));
     }
 
     public override string Clean(string input)
     {
-        newlineIndexes = RegexUtilities.GetMatchesIndexes(input, "\n");
-        newlineIndexes.AddRange(RegexUtilities.GetMatchesIndexes(input, "\r"));
+        newlineIndexes = GetMatchesIndexes(input, "\n");
+        newlineIndexes.AddRange(GetMatchesIndexes(input, "\r"));
         for (int i = brackets.Count - 1; i >= 0; i--)
         {
-            if (brackets[i].type == BracketType.Opening)
+            List<int> newlinesBeforeBracket = new List<int>();
+            if (brackets[i].type == BracketType.Closing)
             {
-                List<int> newlinesBeforeBracket = new List<int>();
-                List<int> newLinesAfterBracket = new List<int>();
+                // (closing bracket)
+
+                // Get newlines before the bracket.
                 for (int j = 0; j < newlineIndexes.Count; j++)
-                    if (newlineIndexes[j] > brackets[i].containerIndex && newlineIndexes[j] < semicolonIndexes[brackets[i].semicolonItem])
-                    {
-                        if (newlineIndexes[j] > brackets[i].index)
-                            newLinesAfterBracket.Add(j);
-                        else
-                            newlinesBeforeBracket.Add(j);
-                    }
-                input = input.Remove(brackets[i].index, 1);
-                if (newlinesBeforeBracket.Count > 0 && newLinesAfterBracket.Count > 0)
-                {
-                    for (int j = newLinesAfterBracket.Count - 1; j >= 0; j--)
-                        input = input.Remove(newlineIndexes[newLinesAfterBracket[j]], 1);
-                }
+                    if (newlineIndexes[j] > semicolonIndexes[brackets[i].semicolonItem] && newlineIndexes[j] < brackets[i].index)
+                        newlinesBeforeBracket.Add(j);
             }
             else
             {
-                input = input.Remove(brackets[i].index, 1);
+                // (opening bracket)
 
-                List<int> newLinesBetweenSemicolonAndBracket = new List<int>();
+                // Get newlines before the bracket.
                 for (int j = 0; j < newlineIndexes.Count; j++)
-                    if (newlineIndexes[j] > semicolonIndexes[brackets[i].semicolonItem] && newlineIndexes[j] < brackets[i].index)
-                        newLinesBetweenSemicolonAndBracket.Add(j);
-                for (int j = newLinesBetweenSemicolonAndBracket.Count - 1; j >= 0; j--)
-                    input = input.Remove(newlineIndexes[newLinesBetweenSemicolonAndBracket[j]], 1);
+                    if (newlineIndexes[j] > brackets[i].containerIndex && newlineIndexes[j] < brackets[i].index)
+                            newlinesBeforeBracket.Add(j);
             }
+
+            // Remove the bracket.
+            input = input.Remove(brackets[i].index, 1);
+
+            // Remove the newlines before the bracket.
+            for (int j = 0; j < newlinesBeforeBracket.Count; j++)
+                input = input.Remove(newlineIndexes[newlinesBeforeBracket[j]], 1);
         }
         return input;
     }
@@ -105,21 +103,20 @@ public class BracketsCleaner: CleanerModule
             Finalize(Clean(input));
     }
 
-    void FindBracketsFollowingIndexes(List<int> indexes)
+    void FindBracketsFollowingContainters(List<RegexMatch> containerMatches)
     {
-        // Find ifs with single-line brackets.
-        for (int i = 0; i < indexes.Count; i++)
+        for (int i = 0; i < containerMatches.Count; i++)
         {
             // Find the next semicolon.
             int semicolonItem = -1;
             for (int j = 0; j < semicolonIndexes.Count && semicolonItem < 0; j++)
-                if (semicolonIndexes[j] > indexes[i])
+                if (semicolonIndexes[j] > containerMatches[i].EndIndex )
                     semicolonItem = j;
 
-            // Find all opening brackets between the if and the semicolon.
+            // Find opening brackets between the container and the semicolon.
             List<int> openingBracketItems = new List<int>();
             for (int j = 0; j < openingBracketsIndexes.Count; j++)
-                if (openingBracketsIndexes[j] >= indexes[i] && openingBracketsIndexes[j] <= semicolonIndexes[semicolonItem])
+                if (openingBracketsIndexes[j] >= containerMatches[i].EndIndex && openingBracketsIndexes[j] <= semicolonIndexes[semicolonItem])
                     openingBracketItems.Add(j);
 
             // Didn't find an unique opening bracket, continue.
@@ -136,8 +133,8 @@ public class BracketsCleaner: CleanerModule
             int nextSemicolonItem = semicolonIndexes.Count - 1 > semicolonItem ? semicolonItem + 1 : -1;
             if (nextSemicolonItem < 0 || semicolonIndexes[nextSemicolonItem] > closingBracketsIndexes[closingBracketItem])
             {
-                brackets.Add(new BracketPair(BracketType.Opening, openingBracketsIndexes[openingBracketItems[0]], indexes[i], semicolonItem));
-                brackets.Add(new BracketPair(BracketType.Closing, closingBracketsIndexes[closingBracketItem], indexes[i], semicolonItem));
+                brackets.Add(new BracketPair(BracketType.Opening, openingBracketsIndexes[openingBracketItems[0]], containerMatches[i].index, semicolonItem));
+                brackets.Add(new BracketPair(BracketType.Closing, closingBracketsIndexes[closingBracketItem], containerMatches[i].index, semicolonItem));
             }
         }
 

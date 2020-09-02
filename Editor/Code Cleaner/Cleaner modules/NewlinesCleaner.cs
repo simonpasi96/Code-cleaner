@@ -1,12 +1,11 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public class NewlinesCleaner : CleanerModule
 {
     List<RegexUtilities.RegexMatch> matches = new List<RegexUtilities.RegexMatch>();
     string input;
-    
+
 
     public override void Find(string input)
     {
@@ -31,10 +30,10 @@ public class NewlinesCleaner : CleanerModule
 
     public override string Clean(string input)
     {
-        for (int i = matches.Count -1; i >=0; i--)
+        for (int i = matches.Count - 1; i >= 0; i--)
         {
-           input = input.Remove(matches[i].index, matches[i].value.Length);
-           input = input.Insert(matches[i].index, "\r\n\r\n");
+            input = input.Remove(matches[i].index, matches[i].value.Length);
+            input = input.Insert(matches[i].index, "\r\n\r\n");
         }
         return input;
     }
@@ -43,7 +42,7 @@ public class NewlinesCleaner : CleanerModule
     {
         GUILayout.Label(matches.Count + " newline group(s) found.");
         if (GUILayout.Button("Clean"))
-           Finalize( Clean(input));
+            Finalize(Clean(input));
     }
 
     public override string GetPreview()
